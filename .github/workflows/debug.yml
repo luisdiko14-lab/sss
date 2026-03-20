@@ -1,4 +1,4 @@
-name: Debug Container Workflow
+name: OMEGA DEBUG PIPELINE
 
 on:
   push:
@@ -6,35 +6,133 @@ on:
   workflow_dispatch:
 
 jobs:
-  debug:
+  omega:
     runs-on: ubuntu-latest
 
-    container:
-      image: node:20-bullseye
+    defaults:
+      run:
+        shell: bash
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+    # 1
+    - name: 🔥 Enable FULL Debug Mode
+      run: |
+        export PS4='+ $(date "+%H:%M:%S") ${BASH_SOURCE}:${LINENO}: '
+        set -x
+        set -e
+        set -o pipefail
 
-      - name: Enable Bash Debug Mode
-        run: |
-          set -x
-          set -e
-          set -o pipefail
+    # 2
+    - name: 📥 Checkout Repository
+      uses: actions/checkout@v4
 
-      - name: Show System Info
-        run: |
-          echo "Node version:"
-          node -v
-          echo "NPM version:"
-          npm -v
-          echo "Files:"
-          ls -la
+    # 3
+    - name: 🧠 Show System Info
+      run: |
+        uname -a
+        lsb_release -a || true
 
-      - name: Install Dependencies
-        run: npm install
+    # 4
+    - name: ⚙️ Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
 
-      - name: Run Your Bot / App
-        run: |
-          set -x
-          node index.js
+    # 5
+    - name: 📦 Verify Node/NPM
+      run: |
+        node -v
+        npm -v
+
+    # 6
+    - name: 💾 Cache NPM
+      uses: actions/cache@v4
+      with:
+        path: ~/.npm
+        key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+
+    # 7
+    - name: 📁 List Files
+      run: ls -la
+
+    # 8
+    - name: 🧾 Create package.json if missing
+      run: |
+        if [ ! -f package.json ]; then
+          npm init -y
+        fi
+
+    # 9
+    - name: 📦 Install Core Packages
+      run: |
+        npm install discord.js dotenv @discordjs/voice
+
+    # 10
+    - name: 📦 Install Extra Packages
+      run: |
+        npm install axios express fs path
+
+    # 11
+    - name: 🧪 Show Installed Packages
+      run: npm list --depth=0
+
+    # 12
+    - name: 🔐 Create .env File
+      run: |
+        echo "TOKEN=FAKE_TOKEN_FOR_TEST" >> .env
+        echo "NODE_ENV=development" >> .env
+
+    # 13
+    - name: 📄 Show .env (safe)
+      run: cat .env
+
+    # 14
+    - name: 🧠 Create test index.js if missing
+      run: |
+        if [ ! -f index.js ]; then
+          cat << 'EOF' > index.js
+          require('dotenv').config();
+          console.log("Bot starting...");
+          console.log("Token:", process.env.TOKEN ? "Loaded" : "Missing");
+          EOF
+        fi
+
+    # 15
+    - name: ▶️ Run App (Debug Mode)
+      run: |
+        node index.js
+
+    # 16
+    - name: 📊 Disk + Memory Check
+      run: |
+        df -h
+        free -h
+
+    # 17
+    - name: 🔍 Deep File Scan
+      run: |
+        find . -type f | wc -l
+        du -sh .
+
+    # 18
+    - name: 📦 Zip Project
+      run: |
+        zip -r project.zip .
+
+    # 19
+    - name: ⬆️ Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: omega-build
+        path: project.zip
+
+    # 20
+    - name: 🧹 Cleanup Test
+      run: |
+        rm -f project.zip || true
+        echo "Cleanup done"
+
+    # 21
+    - name: 🚀 Final Status
+      run: |
+        echo "OMEGA PIPELINE COMPLETED SUCCESSFULLY 🔥"
