@@ -1,0 +1,40 @@
+name: Debug Container Workflow
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+
+    container:
+      image: node:20-bullseye
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Enable Bash Debug Mode
+        run: |
+          set -x
+          set -e
+          set -o pipefail
+
+      - name: Show System Info
+        run: |
+          echo "Node version:"
+          node -v
+          echo "NPM version:"
+          npm -v
+          echo "Files:"
+          ls -la
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Your Bot / App
+        run: |
+          set -x
+          node index.js
