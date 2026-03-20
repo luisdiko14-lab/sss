@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  omega:
+  debug-files-install-packages:
     runs-on: ubuntu-latest
 
     defaults:
@@ -14,125 +14,176 @@ jobs:
         shell: bash
 
     steps:
-    # 1
-    - name: 🔥 Enable FULL Debug Mode
-      run: |
-        export PS4='+ $(date "+%H:%M:%S") ${BASH_SOURCE}:${LINENO}: '
-        set -x
-        set -e
-        set -o pipefail
+      - name: 🔥 Enable FULL Debug Mode
+        run: |
+          echo "PS4='+ $(date \"+%H:%M:%S\") ${BASH_SOURCE}:${LINENO}: '"
+          export PS4='+ $(date "+%H:%M:%S") ${BASH_SOURCE}:${LINENO}: '
+          set -x
+          set -e
+          set -o pipefail
 
-    # 2
-    - name: 📥 Checkout Repository
-      uses: actions/checkout@v4
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
 
-    # 3
-    - name: 🧠 Show System Info
-      run: |
-        uname -a
-        lsb_release -a || true
+      - name: 🧠 Show System Info
+        run: |
+          uname -a
+          lsb_release -a || true
+          whoami
+          pwd
 
-    # 4
-    - name: ⚙️ Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
+      - name: ⚙️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
 
-    # 5
-    - name: 📦 Verify Node/NPM
-      run: |
-        node -v
-        npm -v
+      - name: 📦 Verify Node/NPM
+        run: |
+          node -v
+          npm -v
 
-    # 6
-    - name: 💾 Cache NPM
-      uses: actions/cache@v4
-      with:
-        path: ~/.npm
-        key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+      - name: 💾 Cache NPM
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
 
-    # 7
-    - name: 📁 List Files
-      run: ls -la
+      - name: 📁 List Files
+        run: |
+          ls -la
+          find . -maxdepth 2 -type f | sort
 
-    # 8
-    - name: 🧾 Create package.json if missing
-      run: |
-        if [ ! -f package.json ]; then
-          npm init -y
-        fi
+      - name: 🧾 Create package.json if missing
+        run: |
+          if [ ! -f package.json ]; then
+            npm init -y
+          fi
 
-    # 9
-    - name: 📦 Install Core Packages
-      run: |
-        npm install discord.js dotenv @discordjs/voice
+      - name: 📦 Install Core Packages
+        run: |
+          npm install discord.js dotenv @discordjs/voice
 
-    # 10
-    - name: 📦 Install Extra Packages
-      run: |
-        npm install axios express fs path
+      - name: 📦 Install Extra Packages
+        run: |
+          npm install axios express
 
-    # 11
-    - name: 🧪 Show Installed Packages
-      run: npm list --depth=0
+      - name: 🧪 Show Installed Packages
+        run: |
+          npm list --depth=0
 
-    # 12
-    - name: 🔐 Create .env File
-      run: |
-        echo "TOKEN=FAKE_TOKEN_FOR_TEST" >> .env
-        echo "NODE_ENV=development" >> .env
+      - name: 🔍 Show package.json
+        run: |
+          cat package.json
 
-    # 13
-    - name: 📄 Show .env (safe)
-      run: cat .env
+      - name: 🧩 Show package-lock.json status
+        run: |
+          if [ -f package-lock.json ]; then
+            echo "package-lock.json exists"
+          else
+            echo "package-lock.json missing"
+          fi
 
-    # 14
-    - name: 🧠 Create test index.js if missing
-      run: |
-        if [ ! -f index.js ]; then
-          cat << 'EOF' > index.js
+      - name: 📊 Disk + Memory Check
+        run: |
+          df -h
+          free -h
+
+      - name: 🔍 Deep File Scan
+        run: |
+          echo "File count:"
+          find . -type f | wc -l
+          echo "Project size:"
+          du -sh .
+
+      - name: 🛡️ Validate Node Modules
+        run: |
+          test -d node_modules && echo "node_modules exists" || echo "node_modules missing"
+
+  install-files-and-run:
+    runs-on: ubuntu-latest
+    needs: debug-files-install-packages
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: 🧱 Ensure package.json exists
+        run: |
+          if [ ! -f package.json ]; then
+            npm init -y
+          fi
+
+      - name: 📦 Install Dependencies
+        run: |
+          npm install
+
+      - name: 🔐 Create .env File
+        run: |
+          echo "TOKEN=FAKE_TOKEN_FOR_TEST" > .env
+          echo "NODE_ENV=development" >> .env
+
+      - name: 📄 Show .env (safe)
+        run: |
+          sed 's/TOKEN=.*/TOKEN=***MASKED***/' .env
+
+      - name: 🧠 Create test index.js (safe mode)
+        run: |
+          if [ ! -f index.js ]; then
+            cat > index.js <<'EOF'
           require('dotenv').config();
-          console.log("Bot starting...");
-          console.log("Token:", process.env.TOKEN ? "Loaded" : "Missing");
+          console.log('Bot starting...');
+          console.log('Token:', process.env.TOKEN ? 'Loaded' : 'Missing');
           EOF
-        fi
+          fi
 
-    # 15
-    - name: ▶️ Run App (Debug Mode)
-      run: |
-        node index.js
+      - name: 🔎 Show index.js
+        run: |
+          sed -n '1,120p' index.js
 
-    # 16
-    - name: 📊 Disk + Memory Check
-      run: |
-        df -h
-        free -h
+      - name: ✅ Syntax Check
+        run: |
+          node --check index.js
 
-    # 17
-    - name: 🔍 Deep File Scan
-      run: |
-        find . -type f | wc -l
-        du -sh .
+      - name: ▶️ Run App (Debug Mode)
+        run: |
+          node index.js
 
-    # 18
-    - name: 📦 Zip Project
-      run: |
-        zip -r project.zip .
+      - name: 🧰 npm audit summary
+        run: |
+          npm audit --audit-level=high || true
 
-    # 19
-    - name: ⬆️ Upload Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: omega-build
-        path: project.zip
+      - name: 🧪 Test Node Runtime
+        run: |
+          node -e "console.log('Runtime OK')"
 
-    # 20
-    - name: 🧹 Cleanup Test
-      run: |
-        rm -f project.zip || true
-        echo "Cleanup done"
+      - name: 🗜️ Zip Project
+        run: |
+          zip -r project.zip . -x "*.git*" "node_modules/*" ".env"
 
-    # 21
-    - name: 🚀 Final Status
-      run: |
-        echo "OMEGA PIPELINE COMPLETED SUCCESSFULLY 🔥"
+      - name: ⬆️ Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: omega-build
+          path: project.zip
+
+      - name: 🧹 Cleanup Test
+        run: |
+          rm -f project.zip || true
+          echo "Cleanup done"
+
+      - name: 🚀 Final Status
+        run: |
+          echo "OMEGA PIPELINE COMPLETED SUCCESSFULLY 🔥"
